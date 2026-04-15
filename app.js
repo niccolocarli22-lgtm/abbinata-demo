@@ -57,10 +57,40 @@ let aiEngines = {
 document.addEventListener('DOMContentLoaded', async () => {
     document.documentElement.setAttribute('data-theme', currentTheme);
     
-    // Load data from IndexedDB
+    // 1. Apri il database
+    const db = await openDB();
+
+    // 2. Tenta caricamento da IndexedDB
     closet = await loadFromDB(storeName);
     const historyData = await loadFromDB('history');
-    history = historyData.length > 0 ? historyData : [];
+    
+    // 3. MIGRATION LOGIC: Se IndexedDB è vuoto ma c'è roba in localStorage, migra!
+    if (closet.length === 0) {
+        const oldCloset = localStorage.getItem('abbinata_closet');
+        const oldHistory = localStorage.getItem('abbinata_history');
+        
+        if (oldCloset) {
+            console.log("Migrazione dati da localStorage a IndexedDB in corso...");
+            try {
+                closet = JSON.parse(oldCloset);
+                history = oldHistory ? JSON.parse(oldHistory) : [];
+                
+                // Salva nel nuovo DB
+                await saveCloset();
+                await saveHistory();
+                
+                // Opzionale: pulizia vecchia memoria per liberare spazio
+                // localStorage.removeItem('abbinata_closet');
+                // localStorage.removeItem('abbinata_history');
+                
+                showToast("Dati recuperati con successo!");
+            } catch(e) {
+                console.error("Errore migrazione:", e);
+            }
+        }
+    } else {
+        history = historyData.length > 0 ? historyData : [];
+    }
 
     updateDashboardCounts();
     renderCloset();
