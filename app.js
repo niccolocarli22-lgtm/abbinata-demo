@@ -120,16 +120,18 @@ async function initAIEngines() {
         
         updateStatus("Caricamento Rimozione Sfondo...");
         
-        // Check for SharedArrayBuffer (often needed for full performance, though not strictly for all versions of the lib)
-        if (!window.crossOriginIsolated && !navigator.serviceWorker) {
-            console.warn("L'ambiente non è completamente isolato. Il caricamento AI potrebbe essere più lento o fallire su Safari/Firefox.");
-        }
+        // Safari iOS Optimization: Use 'small' model by default to avoid memory crashes
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const aiModel = isIOS ? 'small' : 'medium';
+        console.log(`Using AI model: ${aiModel} for ${isIOS ? 'iOS' : 'Desktop'}`);
 
         // Nuova URL ultra-stabile 1.7.0 (Supporta ESM nativo su browser moderni)
         const src = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
         try {
             const module = await import(src);
             aiEngines.removal = module.removeBackground;
+            // Pre-warm config
+            aiEngines.config = { model: aiModel };
         } catch (e) {
             console.warn("Modulo ESM non supportato diretto, provo fallback...");
             // Se fallisce import dinamico, non c'è molto altro da fare via CDN puro senza asset locali
@@ -289,7 +291,7 @@ async function processAI() {
     try {
         // Passiamo l'immagine compressa all'IA per evitare crash di memoria
         const resultBlob = await aiEngines.removal(pendingImage, {
-            model: 'medium', // Bilanciato per smartphone
+            ...aiEngines.config,
             progress: (p) => {
                 const percent = Math.round(p * 100);
                 btn.innerText = `✨ IA: ${percent}%...`;
@@ -448,6 +450,17 @@ function exportBackup() { const blob = new Blob([JSON.stringify({closet, history
 function importBackup(event) { const reader = new FileReader(); reader.onload = (e) => { try { const d = JSON.parse(e.target.result); if(d.closet) { closet=d.closet; history=d.history||[]; saveCloset(); saveHistory(); location.reload(); }} catch(err) { showToast("Errore backup."); } }; reader.readAsText(event.target.files[0]); }
 function resetApp() { if(confirm("Sei sicuro?")) { localStorage.clear(); location.reload(); }}
 
+function ntc(hex) {
+    // Simple hex to color name mapper (subset)
+    const colors = {
+        '#ff0000': 'red', '#00ff00': 'green', '#0000ff': 'blue', '#ffffff': 'white', 
+        '#000000': 'black', '#ffff00': 'yellow', '#ff00ff': 'magenta', '#00ffff': 'cyan',
+        '#8b5cf6': 'purple', '#0f172a': 'dark navy', '#ef4444': 'bright red',
+        '#10b981': 'emerald green', '#f59e0b': 'amber', '#3b82f6': 'royal blue'
+    };
+    return colors[hex.toLowerCase()] || 'matching colors';
+}
+
 function openMagicModal() {
     if (!currentSuggestion) return;
     const modal = document.getElementById('magic-modal');
@@ -455,15 +468,28 @@ function openMagicModal() {
     
     const container = document.getElementById('magic-model-container');
     const desc = document.getElementById('magic-description');
-    container.innerHTML = '<div class="dot-pulse"></div>';
-    desc.innerText = "L'IA sta creando il tuo look ideale basato sui tuoi capi...";
+    container.innerHTML = '<div class="dot-pulse"></div><p style="margin-top:1rem; color:var(--text-dim);">L\\\'IA sta dipingendo il tuo look...</p>';
+    desc.innerText = "Attendi qualche secondo per la generazione professionale.";
 
-    setTimeout(() => {
-        // Simuliamo la generazione basata sulle categorie/colori dell'outfit attuale
-        const types = currentSuggestion.map(i => i.category).join(' & ');
-        container.innerHTML = `<img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=400&q=80" style="width:100%; border-radius:12px; animation: fadeIn 0.5s ease-out;">`;
-        desc.innerText = `Ecco un look ispirato ai tuoi ${types}. Uno stile fresco e moderno per la giornata di oggi!`;
-    }, 2000);
+    // PROMPT GENERATION
+    const top = currentSuggestion.find(i => i.category === 'top');
+    const bottom = currentSuggestion.find(i => i.category === 'bottom');
+    const colorTop = ntc(top?.color || '');
+    const colorBottom = ntc(bottom?.color || '');
+
+    const prompt = `A professional catalog fashion photo of a model wearing a ${colorTop} ${top?.category || 'shirt'} and ${colorBottom} ${bottom?.category || 'trousers'}, clean bright studio background, premium aesthetic, Zara style, 8k, highly detailed.`;
+    const encodedPrompt = encodeURIComponent(prompt);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=1000&nologo=true&seed=${Date.now()}`;
+
+    const img = new Image();
+    img.onload = () => {
+        container.innerHTML = `<img src="${imageUrl}" style="width:100%; border-radius:12px; animation: fadeIn 0.8s ease-out; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">`;
+        desc.innerText = `Ispirazione: Look ${colorTop} & ${colorBottom}. Generato in tempo reale per te.`;
+    };
+    img.onerror = () => {
+        container.innerHTML = '<p style="color:var(--accent-red);">Errore generazione. Riprova tra poco.</p>';
+    };
+    img.src = imageUrl;
 }
 
 function closeModal(id) {
