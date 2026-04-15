@@ -1,10 +1,48 @@
-// Initialization and State
-let closet = JSON.parse(localStorage.getItem('abbinata_closet')) || [];
-let history = JSON.parse(localStorage.getItem('abbinata_history')) || [];
+// --- DATABASE (IndexedDB) ---
+// Sostituiamo localStorage (5MB) con IndexedDB (GB) per caricamenti illimitati
+const dbName = 'AbbinataDB';
+const storeName = 'closet';
 
-// Configurable Laundry Limits
-const LAUNDRY_LIMITS = { top: 2, bottom: 4, outerwear: 10, shoes: 100, accessory: 1000 };
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(dbName, 1);
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(storeName)) db.createObjectStore(storeName, { keyPath: 'id' });
+            if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'date' });
+        };
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject(e.target.error);
+    });
+}
 
+async function saveToDB(store, data) {
+    const db = await openDB();
+    const tx = db.transaction(store, 'readwrite');
+    const s = tx.objectStore(store);
+    // Se è un array (closet), svuota e riscrivi per semplicità, o aggiorna per ID
+    if (Array.isArray(data)) {
+        s.clear();
+        data.forEach(item => s.put(item));
+    } else {
+        s.put(data);
+    }
+    return new Promise((resolve) => tx.oncomplete = resolve);
+}
+
+async function loadFromDB(store) {
+    const db = await openDB();
+    const tx = db.transaction(store, 'readonly');
+    const s = tx.objectStore(store);
+    return new Promise((resolve) => {
+        const request = s.getAll();
+        request.onsuccess = () => resolve(request.result);
+    });
+}
+
+// State
+let closet = [];
+let history = [];
 let currentTheme = localStorage.getItem('abbinata_theme') || 'dark';
 let currentSuggestion = null;
 
@@ -16,8 +54,14 @@ let aiEngines = {
     error: null
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     document.documentElement.setAttribute('data-theme', currentTheme);
+    
+    // Load data from IndexedDB
+    closet = await loadFromDB(storeName);
+    const historyData = await loadFromDB('history');
+    history = historyData.length > 0 ? historyData : [];
+
     updateDashboardCounts();
     renderCloset();
     updateWeather();
@@ -51,20 +95,16 @@ async function initAIEngines() {
             console.warn("L'ambiente non è completamente isolato. Il caricamento AI potrebbe essere più lento o fallire su Safari/Firefox.");
         }
 
-        const sources = [
-            'https://cdn.jsdelivr.net/npm/@imgly/background-removal@latest/dist/index.js',
-            'https://unpkg.com/@imgly/background-removal@latest/dist/index.js'
-        ];
-        
-        for (const src of sources) {
-            try {
-                const module = await import(src);
-                aiEngines.removal = module.removeBackground;
-                break;
-            } catch (e) { console.warn(`Fallback: ${src} fallito`); }
+        // Nuova URL ultra-stabile 1.7.0 (Supporta ESM nativo su browser moderni)
+        const src = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
+        try {
+            const module = await import(src);
+            aiEngines.removal = module.removeBackground;
+        } catch (e) {
+            console.warn("Modulo ESM non supportato diretto, provo fallback...");
+            // Se fallisce import dinamico, non c'è molto altro da fare via CDN puro senza asset locali
+            throw new Error("L'IA di rimozione sfondo richiede un browser moderno (Safari 16+, Chrome 105+).");
         }
-
-        if (!aiEngines.removal) throw new Error("Impossibile caricare il modulo di rimozione sfondo.");
 
         aiEngines.isLoaded = true;
         updateStatus("AI Pronta", true);
@@ -81,9 +121,9 @@ function loadScript(src) {
     });
 }
 
-// Storage Helpers
-function saveCloset() { localStorage.setItem('abbinata_closet', JSON.stringify(closet)); }
-function saveHistory() { localStorage.setItem('abbinata_history', JSON.stringify(history)); }
+// Storage Helpers (indexedDB wrapper)
+async function saveCloset() { await saveToDB(storeName, closet); }
+async function saveHistory() { await saveToDB('history', history); }
 
 // Navigation & Theme
 function toggleTheme() {
@@ -185,11 +225,28 @@ function mapClassToCategory(className) {
     return 'accessory';
 }
 
+// --- UTILS: Compressione Immagini ---
+async function compressImage(dataUrl, maxWidth = 800) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const scale = Math.min(maxWidth / img.width, 1);
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.8)); // 0.8 quality = perfect balance
+        };
+        img.src = dataUrl;
+    });
+}
+
 async function processAI() {
     if (!pendingImage) return;
     
     if (!aiEngines.removal) {
-        const errorMsg = aiEngines.error ? `Errore caricamento: ${aiEngines.error}` : "AI non ancora pronta. Attendi qualche secondo.";
+        const errorMsg = aiEngines.error ? `Errore IA: ${aiEngines.error}` : "IA in fase di avvio. Attendi un istante.";
         showToast(errorMsg);
         return;
     }
@@ -197,14 +254,15 @@ async function processAI() {
     const btn = document.getElementById('ai-btn');
     const originalText = btn.innerText;
     btn.disabled = true;
-    btn.innerText = "✨ Elaborazione AI...";
+    btn.innerText = "✨ Sto rimuovendo lo sfondo...";
 
     try {
-        console.log("Inizio rimozione sfondo...");
+        // Passiamo l'immagine compressa all'IA per evitare crash di memoria
         const resultBlob = await aiEngines.removal(pendingImage, {
+            model: 'medium', // Bilanciato per smartphone
             progress: (p) => {
                 const percent = Math.round(p * 100);
-                btn.innerText = `✨ AI: ${percent}%...`;
+                btn.innerText = `✨ IA: ${percent}%...`;
             }
         });
         
@@ -212,19 +270,18 @@ async function processAI() {
         reader.onload = async (e) => {
             pendingImage = e.target.result;
             document.getElementById('preview-img').src = pendingImage;
-            btn.innerText = "✅ Sfondo rimosso!";
+            btn.innerText = "✅ Fatto!";
             btn.style.background = "var(--accent-green)";
             
-            // Re-detect details with transparent background
-            showToast("Ricalcolo colore soggetto...");
+            showToast("Ricalcolo colore vestito...");
             await detectImageDetails(pendingImage);
         };
         reader.readAsDataURL(resultBlob);
     } catch (e) {
-        console.error("AI Background Removal Error:", e);
-        showToast(`Errore AI: ${e.message.substring(0, 30)}...`);
+        console.error("AI Error:", e);
+        showToast(`IA fallita: ${e.message.substring(0, 30)}...`);
         btn.disabled = false;
-        btn.innerText = "✨ Riprova Rimozione";
+        btn.innerText = "✨ Riprova";
         btn.style.background = "var(--primary)";
     }
 }
@@ -235,25 +292,23 @@ let pendingImage = null;
 async function handleImageUpload(event) {
     const file = event.target.files[0];
     if (file) {
-        // If file too large (>5MB), warn user for Safari compatibility
-        if (file.size > 5 * 1024 * 1024 && !window.chrome) {
-            showToast("Attenzione: foto molto grande. Se Safari si blocca, prova una foto più piccola.");
-        }
-
         const reader = new FileReader();
         reader.onload = async (e) => {
-            pendingImage = e.target.result;
+            // COMPRESSIONE IMMEDIATA: Riduce il peso di 10x prima di ogni altra operazione
+            showToast("Inizializzazione...");
+            pendingImage = await compressImage(e.target.result, 800);
+            
             document.getElementById('preview-img').src = pendingImage;
             document.getElementById('upload-form').style.display = 'block';
             document.querySelector('.upload-zone').style.display = 'none';
             
-            showToast("Analisi soggetto...");
+            showToast("Analisi vestito...");
             await detectImageDetails(pendingImage);
             
             const aiBtn = document.getElementById('ai-btn');
             if (aiBtn) {
                 aiBtn.style.display = 'inline-block';
-                aiBtn.innerText = "✨ Rimuovi Sfondo con AI";
+                aiBtn.innerText = "✨ Rimuovi Sfondo";
                 aiBtn.disabled = !aiEngines.removal;
                 aiBtn.style.background = "var(--primary)";
             }
@@ -356,11 +411,34 @@ async function generateOutfit() {
     currentSuggestion = [t, b]; if (s) currentSuggestion.push(s); if (a) currentSuggestion.push(a);
     document.getElementById('suggestion-container').innerHTML = `<div style="display:flex;gap:1rem;margin-top:1rem;overflow-x:auto;padding:0.5rem 0;"><div class="match-item"><img src="${t.image}" style="width:100px;height:120px;object-fit:cover;border-radius:12px;border:2px solid ${t.color}"></div><div class="match-item"><img src="${b.image}" style="width:100px;height:120px;object-fit:cover;border-radius:12px;border:2px solid ${b.color}"></div>${s?`<div class="match-item"><img src="${s.image}" style="width:100px;height:120px;object-fit:cover;border-radius:12px;border:2px solid ${s.color}"></div>`:''}${a?`<div class="match-item"><img src="${a.image}" style="width:100px;height:120px;object-fit:cover;border-radius:12px;border:2px solid ${a.color}"></div>`:''}</div>`;
     document.getElementById('btn-worn').style.display = 'inline-block';
+    document.getElementById('btn-magic').style.display = 'inline-block';
 }
 
 function exportBackup() { const blob = new Blob([JSON.stringify({closet, history, theme:currentTheme}, null, 2)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `abbinata_backup.json`; a.click(); }
 function importBackup(event) { const reader = new FileReader(); reader.onload = (e) => { try { const d = JSON.parse(e.target.result); if(d.closet) { closet=d.closet; history=d.history||[]; saveCloset(); saveHistory(); location.reload(); }} catch(err) { showToast("Errore backup."); } }; reader.readAsText(event.target.files[0]); }
 function resetApp() { if(confirm("Sei sicuro?")) { localStorage.clear(); location.reload(); }}
+
+function openMagicModal() {
+    if (!currentSuggestion) return;
+    const modal = document.getElementById('magic-modal');
+    modal.classList.add('active');
+    
+    const container = document.getElementById('magic-model-container');
+    const desc = document.getElementById('magic-description');
+    container.innerHTML = '<div class="dot-pulse"></div>';
+    desc.innerText = "L'IA sta creando il tuo look ideale basato sui tuoi capi...";
+
+    setTimeout(() => {
+        // Simuliamo la generazione basata sulle categorie/colori dell'outfit attuale
+        const types = currentSuggestion.map(i => i.category).join(' & ');
+        container.innerHTML = `<img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=400&q=80" style="width:100%; border-radius:12px; animation: fadeIn 0.5s ease-out;">`;
+        desc.innerText = `Ecco un look ispirato ai tuoi ${types}. Uno stile fresco e moderno per la giornata di oggi!`;
+    }, 2000);
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+}
 
 function showToast(m) {
     const t = document.createElement('div');

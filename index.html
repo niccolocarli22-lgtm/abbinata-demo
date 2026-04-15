@@ -12,6 +12,18 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
+    <!-- Magic Lookbook Modal -->
+    <div id="magic-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px; text-align: center;">
+            <h2 style="margin-bottom: 1rem; background: linear-gradient(45deg, #8b5cf6, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">✨ Il Tuo Magic Look</h2>
+            <div id="magic-model-container" style="min-height: 300px; display: flex; align-items: center; justify-content: center; position: relative;">
+                <div class="dot-pulse"></div>
+            </div>
+            <p id="magic-description" style="margin: 1.5rem 0; color: var(--text-dim); font-size: 0.9rem;"></p>
+            <button class="btn-primary" onclick="closeModal('magic-modal')" style="width: 100%;">Splendido!</button>
+        </div>
+    </div>
+
     <div id="app">
         <nav>
             <div class="logo">ABBINATA</div>
@@ -48,9 +60,12 @@
                             <!-- Populated by JS -->
                         </div>
                         <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                            <button class="btn-primary" onclick="generateOutfit()">Genera Nuovo Look</button>
-                            <button class="btn-primary" id="btn-worn" onclick="markAsWorn()" style="background: var(--card-bg); border: 1px solid var(--border-color); display: none;">
-                                <i data-lucide="check-circle"></i> Indossato Oggi
+                            <button class="btn-primary" onclick="generateOutfit()" style="flex:2;">Genera Nuovo Look</button>
+                            <button class="btn-primary" id="btn-worn" onclick="markAsWorn()" style="background: var(--card-bg); border: 1px solid var(--border-color); display: none; flex:2;">
+                                <i data-lucide="check-circle"></i> Indossato
+                            </button>
+                            <button class="btn-primary" id="btn-magic" onclick="openMagicModal()" style="background: linear-gradient(45deg, #8b5cf6, #ec4899); display: none; flex:1; padding: 0.5rem;">
+                                <i data-lucide="sparkles"></i>
                             </button>
                         </div>
                     </div>
