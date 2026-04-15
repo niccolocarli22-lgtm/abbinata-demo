@@ -383,18 +383,77 @@ async function generateOutfit() {
     const available = closet.filter(i => i.status === 'disponibile');
     const tops = available.filter(i => i.category === 'top');
     const bottoms = available.filter(i => i.category === 'bottom');
+    const shoes = available.filter(i => i.category === 'shoes');
+    const acc = available.filter(i => i.category === 'accessory');
     if (tops.length === 0 || bottoms.length === 0) {
         document.getElementById('suggestion-container').innerHTML = `<p style="color:var(--text-dim);">Aggiungi vestiti puliti!</p>`;
         return;
     }
     const t = tops[Math.floor(Math.random() * tops.length)];
     const b = bottoms[Math.floor(Math.random() * bottoms.length)];
-    currentSuggestion = [t, b];
-    document.getElementById('suggestion-container').innerHTML = `
-        <div class="item-card" style="width:120px; border:2px solid ${t.color}"><img src="${t.image}" style="width:100%"></div>
-        <div class="item-card" style="width:120px; border:2px solid ${b.color}"><img src="${b.image}" style="width:100%"></div>
-    `;
+    const s = shoes[Math.floor(Math.random() * shoes.length)] || null;
+    const a = acc[Math.floor(Math.random() * acc.length)] || null;
+    currentSuggestion = [t, b]; if (s) currentSuggestion.push(s); if (a) currentSuggestion.push(a);
+    document.getElementById('suggestion-container').innerHTML = `<div style="display:flex;gap:1rem;margin-top:1rem;overflow-x:auto;padding:0.5rem 0;"><div class="match-item"><img src="${t.image}" style="width:100px;height:120px;object-fit:cover;border-radius:12px;border:2px solid ${t.color}"></div><div class="match-item"><img src="${b.image}" style="width:100px;height:120px;object-fit:cover;border-radius:12px;border:2px solid ${b.color}"></div>${s?`<div class="match-item"><img src="${s.image}" style="width:100px;height:120px;object-fit:cover;border-radius:12px;border:2px solid ${s.color}"></div>`:''}${a?`<div class="match-item"><img src="${a.image}" style="width:100px;height:120px;object-fit:cover;border-radius:12px;border:2px solid ${a.color}"></div>`:''}</div>`;
     document.getElementById('btn-worn').style.display = 'inline-block';
+    if (performanceMode === false || performanceMode === true) {
+         document.getElementById('btn-magic').style.display = 'inline-block';
+    }
+    
+    // Genera consiglio Stylist
+    const advice = generateStylistAdvice(currentSuggestion);
+    const adviceEl = document.getElementById('stylist-advice');
+    if (adviceEl) {
+        document.getElementById('stylist-text').innerText = advice;
+        adviceEl.style.display = 'block';
+    }
+}
+
+// --- STYLIST LOGIC ---
+function generateStylistAdvice(outfit) {
+    let advice = "";
+    const acc = outfit.find(i => i.category === 'accessory');
+    const shoes = outfit.find(i => i.category === 'shoes');
+    const outerwear = outfit.find(i => i.category === 'outerwear');
+
+    // Regola del Cuoio/Pelle
+    if (shoes) {
+        const shoeColor = ntc(shoes.color);
+        if (shoeColor.includes('brown') || shoeColor.includes('black') || shoeColor.includes('marrone') || shoeColor.includes('nero')) {
+            if (!acc) {
+                advice += `Hai abbinato scarpe scure. Aggiungere un orologio o una cintura in pelle dello stesso colore creerebbe una simmetria perfetta. `;
+            }
+        }
+    }
+
+    // Regola del Terzo Pezzo
+    if (!acc && !outerwear) {
+        advice += `Questo look minimale è ottimo, ma potresti elevarlo aggiungendo un "terzo pezzo" (come una giacca o un accessorio al polso). `;
+    }
+
+    if (advice === "") {
+        advice = "Outfit perfettamente bilanciato. I colori e gli accessori si sposano in armonia.";
+    }
+    return advice;
+}
+
+// --- DEMO LOGIC ---
+async function loadDemoData() {
+    if (confirm("Vuoi caricare i Capi d'Esempio nell'armadio per provare l'app? I tuoi capi attuali non verranno cancellati.")) {
+        const demoItems = [
+            { id: Date.now() + 1, category: 'top', color: '#ffffff', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=400&q=80', status: 'disponibile', wear_count: 0 },
+            { id: Date.now() + 2, category: 'bottom', color: '#1a202c', image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=400&q=80', status: 'disponibile', wear_count: 0 },
+            { id: Date.now() + 3, category: 'shoes', color: '#8b4513', image: 'https://images.unsplash.com/photo-1514989940723-e8e51635b782?auto=format&fit=crop&w=400&q=80', status: 'disponibile', wear_count: 0 },
+            { id: Date.now() + 4, category: 'top', color: '#0f172a', image: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?auto=format&fit=crop&w=400&q=80', status: 'disponibile', wear_count: 0 }
+        ];
+        closet.push(...demoItems);
+        await saveCloset();
+        renderCloset();
+        generateOutfit();
+        checkLaundryStatus();
+        showToast("Dati Demo caricati con successo!");
+        switchSection('armadio');
+    }
 }
 
 function markAsWorn() {
@@ -434,10 +493,16 @@ function openMagicModal() {
     const container = document.getElementById('magic-model-container');
     container.innerHTML = '<div class="dot-pulse"></div>';
     
+    // PROMPT GENERATION (Anti-Distorsione & Alta Moda)
     const top = currentSuggestion.find(i => i.category === 'top');
     const bottom = currentSuggestion.find(i => i.category === 'bottom');
-    const prompt = `A professional catalog fashion photo of a male model wearing a ${ntc(top.color)} shirt and ${ntc(bottom.color)} trousers, clean studio background, Zara style.`;
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=800&height=1000&nologo=true&seed=${Date.now()}`;
+    const shoes = currentSuggestion.find(i => i.category === 'shoes');
+    
+    let shoePrompt = shoes ? `wearing ${ntc(shoes.color)} shoes,` : '';
+
+    const prompt = `A highly realistic full body fashion catalog shot of a male model, standing straight, perfectly proportioned body, natural face, hands in pockets, wearing a ${ntc(top.color)} shirt and ${ntc(bottom.color)} trousers, ${shoePrompt} clean bright studio background, 50mm lens photography, 8k resolution, highly detailed, Zara minimal aesthetic.`;
+    const encodedPrompt = encodeURIComponent(prompt);
+    const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=1000&nologo=true&seed=${Date.now()}`;
     
     const img = new Image();
     img.onload = () => container.innerHTML = `<img src="${url}" style="width:100%; border-radius:12px;">`;

@@ -59,24 +59,18 @@
 
     <div id="app">
         <nav>
-            <div class="logo">ABBINATA</div>
-            <div id="ai-status" style="font-size: 0.7rem; color: var(--text-dim); margin-right: auto; margin-left: 2rem; display: flex; align-items: center; gap: 0.5rem;">
-                <div class="dot-pulse"></div> 🤖 Inizializzazione AI...
-            </div>
+            <div class="logo">✨ Abbinata</div>
             <div class="nav-links">
-                <button class="nav-btn active" onclick="switchSection('dashboard')" data-section="dashboard">
-                    <i data-lucide="layout-dashboard"></i> <span>Home</span>
+                <button class="nav-btn active" data-section="dashboard" onclick="switchSection('dashboard')">
+                    <i data-lucide="layout-dashboard"></i> <span>Dashboard</span>
                 </button>
-                <button class="nav-btn" onclick="switchSection('armadio')" data-section="armadio">
+                <button class="nav-btn" data-section="armadio" onclick="switchSection('armadio')">
                     <i data-lucide="shirt"></i> <span>Armadio</span>
                 </button>
-                <button class="nav-btn" onclick="switchSection('aggiungi')" data-section="aggiungi">
-                    <i data-lucide="plus-circle"></i> <span>Nuovo</span>
+                <button class="nav-btn" onclick="loadDemoData()" style="color:var(--secondary); font-weight:700;">
+                    <i data-lucide="sparkles"></i> <span>Prova Demo</span>
                 </button>
-                <button class="nav-btn" onclick="switchSection('settings')" data-section="settings">
-                    <i data-lucide="settings"></i> <span>Impostazioni</span>
-                </button>
-                <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Cambia Tema">
+                <button class="theme-toggle" onclick="toggleTheme()" aria-label="Cambia tema">
                     <i data-lucide="moon" id="theme-icon"></i>
                 </button>
             </div>
@@ -92,6 +86,12 @@
                         <div id="suggestion-container" class="clothes-grid" style="margin-top: 1rem;">
                             <!-- Suggerimento dinamico -->
                         </div>
+                        <!-- Stylist Advice -->
+                        <div id="stylist-advice" style="margin-top: 1.5rem; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-left: 4px solid var(--primary); border-radius: 0 12px 12px 0; font-size: 0.9rem; color: var(--text-main); display: none;">
+                            <strong style="color: var(--primary);">✨ Consiglio dello Stylist:</strong>
+                            <p id="stylist-text" style="margin-top: 0.5rem;"></p>
+                        </div>
+                        
                         <!-- Laundry Alert -->
                         <div id="laundry-alert" class="laundry-alert">
                             <i data-lucide="alert-triangle"></i>
