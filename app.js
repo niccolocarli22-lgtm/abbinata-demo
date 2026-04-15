@@ -1,29 +1,58 @@
 // Initialization and State
 const DEMO_ASSETS = [
-    { id: 1, category: 'top', color: '#ffffff', image: './assets/white_tee.png', status: 'disponibile' },
-    { id: 2, category: 'bottom', color: '#1e3a8a', image: './assets/blue_jeans.png', status: 'disponibile' },
-    { id: 3, category: 'shoes', color: '#d1d5db', image: './assets/sneakers.png', status: 'disponibile' },
-    { id: 4, category: 'accessory', color: '#000000', image: './assets/watch.png', status: 'disponibile' }
+    { id: 1, category: 'top', color: '#ffffff', image: './assets/white_tee.png', status: 'disponibile', wear_count: 0 },
+    { id: 2, category: 'bottom', color: '#1e3a8a', image: './assets/blue_jeans.png', status: 'disponibile', wear_count: 0 },
+    { id: 3, category: 'shoes', color: '#d1d5db', image: './assets/sneakers.png', status: 'disponibile', wear_count: 0 },
+    { id: 4, category: 'accessory', color: '#000000', image: './assets/watch.png', status: 'disponibile', wear_count: 0 }
 ];
 
-let closet = JSON.parse(localStorage.getItem('abbinata_closet'));
-if (!closet || closet.length === 0) {
+// Configurable Laundry Limits
+const LAUNDRY_LIMITS = {
+    top: 2,
+    bottom: 4,
+    outerwear: 10,
+    shoes: 100,
+    accessory: 1000
+};
+
+let closet = JSON.parse(localStorage.getItem('abbinata_closet')) || [];
+let history = JSON.parse(localStorage.getItem('abbinata_history')) || [];
+
+if (closet.length === 0) {
     closet = DEMO_ASSETS;
-    localStorage.setItem('abbinata_closet', JSON.stringify(closet));
+    saveCloset();
 }
 
 let currentTheme = localStorage.getItem('abbinata_theme') || 'dark';
-document.documentElement.setAttribute('data-theme', currentTheme);
+let currentSuggestion = null;
+
+// AI Background Removal Engine (Late-loaded)
+let removeBackground = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    document.documentElement.setAttribute('data-theme', currentTheme);
     updateDashboardCounts();
     renderCloset();
     updateWeather();
     updateThemeIcon();
     
-    // Initial Outfit Suggestion
-    setTimeout(generateOutfit, 500);
+    // Load AI module if possible
+    loadAI();
 });
+
+async function loadAI() {
+    try {
+        const module = await import('https://cdn.jsdelivr.net/npm/@imgly/background-removal@latest/dist/index.js');
+        removeBackground = module.removeBackground;
+        console.log("AI Background Removal Loaded");
+    } catch (e) {
+        console.warn("AI Module load failed", e);
+    }
+}
+
+// Storage Helpers
+function saveCloset() { localStorage.setItem('abbinata_closet', JSON.stringify(closet)); }
+function saveHistory() { localStorage.setItem('abbinata_history', JSON.stringify(history)); }
 
 // Theme Logic
 function toggleTheme() {
@@ -35,12 +64,10 @@ function toggleTheme() {
 
 function updateThemeIcon() {
     const icon = document.getElementById('theme-icon');
-    if (currentTheme === 'light') {
-        icon.setAttribute('data-lucide', 'sun');
-    } else {
-        icon.setAttribute('data-lucide', 'moon');
+    if (icon) {
+        icon.setAttribute('data-lucide', currentTheme === 'light' ? 'sun' : 'moon');
+        if (window.lucide) lucide.createIcons();
     }
-    if (window.lucide) lucide.createIcons();
 }
 
 // Navigation
@@ -48,8 +75,41 @@ function switchSection(sectionId) {
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     
-    document.getElementById(sectionId).classList.add('active');
-    document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
+    const target = document.getElementById(sectionId);
+    if (target) target.classList.add('active');
+    
+    const btn = document.querySelector(`[data-section="${sectionId}"]`);
+    if (btn) btn.classList.add('active');
+}
+
+// AI BG Removal Tool
+async function processAI() {
+    if (!pendingImage) return;
+    if (!removeBackground) {
+        showToast("L'AI sta ancora caricando... Riprova tra pochi secondi.");
+        return;
+    }
+
+    const btn = document.getElementById('ai-btn');
+    const originalText = btn.innerText;
+    btn.innerText = "✨ Elaborazione AI...";
+    btn.disabled = true;
+
+    try {
+        const resultBlob = await removeBackground(pendingImage);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            pendingImage = e.target.result;
+            document.getElementById('preview-img').src = pendingImage;
+            btn.innerText = "✅ Sfondo rimosso!";
+            btn.style.background = "var(--accent-green)";
+        };
+        reader.readAsDataURL(resultBlob);
+    } catch (e) {
+        showToast("Errore durante l'elaborazione AI.");
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
 }
 
 // Image Upload
@@ -64,6 +124,15 @@ function handleImageUpload(event) {
             document.getElementById('preview-img').src = pendingImage;
             document.getElementById('upload-form').style.display = 'block';
             document.querySelector('.upload-zone').style.display = 'none';
+            
+            // Show AI button
+            const aiBtn = document.getElementById('ai-btn');
+            if (aiBtn) {
+                aiBtn.style.display = 'inline-block';
+                aiBtn.innerText = "✨ Rimuovi Sfondo con AI";
+                aiBtn.disabled = false;
+                aiBtn.style.background = "var(--primary)";
+            }
         };
         reader.readAsDataURL(file);
     }
@@ -78,13 +147,14 @@ function saveNewItem() {
         image: pendingImage,
         category: category,
         color: color,
-        status: 'disponibile'
+        status: 'disponibile',
+        wear_count: 0
     };
     
     closet.push(newItem);
-    localStorage.setItem('abbinata_closet', JSON.stringify(closet));
+    saveCloset();
     
-    // Reset
+    // Reset Form
     pendingImage = null;
     document.getElementById('upload-form').style.display = 'none';
     document.querySelector('.upload-zone').style.display = 'block';
@@ -92,15 +162,53 @@ function saveNewItem() {
     renderCloset();
     updateDashboardCounts();
     switchSection('armadio');
-    showToast('Capo salvato!');
+    showToast('Capo aggiunto!');
+}
+
+// Laundry & History Logic
+function markAsWorn() {
+    if (!currentSuggestion) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Update wear counts
+    currentSuggestion.forEach(item => {
+        const closetItem = closet.find(i => i.id === item.id);
+        if (closetItem) {
+            closetItem.wear_count = (closetItem.wear_count || 0) + 1;
+            
+            // Check threshold
+            const limit = LAUNDRY_LIMITS[closetItem.category] || 3;
+            if (closetItem.wear_count >= limit) {
+                closetItem.status = 'sporco';
+                showToast(`${closetItem.category} spostato in lavanderia!`);
+            }
+        }
+    });
+
+    // Save to history
+    history.push({
+        date: today,
+        ids: currentSuggestion.map(i => i.id)
+    });
+
+    saveCloset();
+    saveHistory();
+    
+    document.getElementById('btn-worn').style.display = 'none';
+    showToast("Outfit registrato in cronologia!");
+    renderCloset();
+    updateDashboardCounts();
 }
 
 // Rendering
 function renderCloset() {
     const container = document.getElementById('clothes-grid');
+    if (!container) return;
     container.innerHTML = '';
     
-    let currentFilter = document.querySelector('.filter-chip.active').innerText.toLowerCase();
+    const activeFilterChip = document.querySelector('.filter-chip.active');
+    let currentFilter = activeFilterChip ? activeFilterChip.innerText.toLowerCase() : 'tutti';
     if (currentFilter === 'tutti') currentFilter = '';
     else if (currentFilter === 'puliti') currentFilter = 'disponibile';
 
@@ -114,13 +222,12 @@ function renderCloset() {
             <div class="item-info">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
                     <span class="status-tag status-${item.status}">${item.status === 'disponibile' ? 'pulito' : item.status}</span>
-                    <div style="width: 14px; height: 14px; border-radius: 50%; background: ${item.color}; border: 1px solid rgba(0,0,0,0.1);"></div>
+                    <span style="font-size: 0.65rem; color: var(--text-dim);">Usi: ${item.wear_count || 0}</span>
                 </div>
                 <div style="display: flex; gap: 0.4rem; margin-top: 1rem;">
-                    <button class="nav-btn" onclick="updateStatus(${item.id}, 'disponibile')" style="padding: 5px;"><i data-lucide="sparkles" size="14"></i></button>
-                    <button class="nav-btn" onclick="updateStatus(${item.id}, 'sporco')" style="padding: 5px;"><i data-lucide="droplets" size="14"></i></button>
-                    <button class="nav-btn" onclick="updateStatus(${item.id}, 'lavaggio')" style="padding: 5px;"><i data-lucide="refresh-cw" size="14"></i></button>
-                    <button class="nav-btn" onclick="deleteItem(${item.id})" style="padding: 5px; color: var(--accent-red); margin-left: auto;"><i data-lucide="trash-2" size="14"></i></button>
+                    <button class="nav-btn" onclick="updateStatus(${item.id}, 'disponibile')" title="Pulisci"><i data-lucide="sparkles" size="14"></i></button>
+                    <button class="nav-btn" onclick="updateStatus(${item.id}, 'sporco')" title="Sporco"><i data-lucide="droplets" size="14"></i></button>
+                    <button class="nav-btn" onclick="deleteItem(${item.id})" style="color: var(--accent-red); margin-left: auto;"><i data-lucide="trash-2" size="14"></i></button>
                 </div>
             </div>
         `;
@@ -130,8 +237,14 @@ function renderCloset() {
 }
 
 function updateStatus(id, status) {
-    closet = closet.map(i => i.id === id ? {...i, status} : i);
-    localStorage.setItem('abbinata_closet', JSON.stringify(closet));
+    closet = closet.map(i => {
+        if (i.id === id) {
+            const newCount = status === 'disponibile' ? 0 : i.wear_count;
+            return {...i, status, wear_count: newCount};
+        }
+        return i;
+    });
+    saveCloset();
     renderCloset();
     updateDashboardCounts();
 }
@@ -139,7 +252,7 @@ function updateStatus(id, status) {
 function deleteItem(id) {
     if (confirm('Eliminare questo capo?')) {
         closet = closet.filter(i => i.id !== id);
-        localStorage.setItem('abbinata_closet', JSON.stringify(closet));
+        saveCloset();
         renderCloset();
         updateDashboardCounts();
     }
@@ -182,18 +295,24 @@ async function updateWeather() {
     }
 }
 
-// Matching
+// Matching Intelligence
 async function generateOutfit() {
     const temp = await updateWeather();
     const available = closet.filter(i => i.status === 'disponibile');
     
-    const tops = available.filter(i => i.category === 'top');
-    const bottoms = available.filter(i => i.category === 'bottom');
-    const shoes = available.filter(i => i.category === 'shoes');
-    const acc = available.filter(i => i.category === 'accessory');
+    // Exclusion logic (History)
+    const recentIds = history.slice(-2).flatMap(h => h.ids);
+    const filteredAvailable = available.filter(i => !recentIds.includes(i.id));
+    
+    const candidates = filteredAvailable.length > 5 ? filteredAvailable : available;
+
+    const tops = candidates.filter(i => i.category === 'top');
+    const bottoms = candidates.filter(i => i.category === 'bottom');
+    const shoes = candidates.filter(i => i.category === 'shoes');
+    const acc = candidates.filter(i => i.category === 'accessory');
 
     if (tops.length === 0 || bottoms.length === 0) {
-        document.getElementById('suggestion-container').innerHTML = `<p style="padding: 2rem; color: var(--text-dim);">Aggiungi altri capi puliti per i suggerimenti!</p>`;
+        document.getElementById('suggestion-container').innerHTML = `<p style="padding: 2rem; color: var(--text-dim);">Aggiungi altri capi puliti!</p>`;
         return;
     }
 
@@ -202,6 +321,10 @@ async function generateOutfit() {
     const s = shoes.length > 0 ? shoes[Math.floor(Math.random() * shoes.length)] : null;
     const a = acc.length > 0 ? acc[Math.floor(Math.random() * acc.length)] : null;
 
+    currentSuggestion = [t, b];
+    if (s) currentSuggestion.push(s);
+    if (a) currentSuggestion.push(a);
+
     document.getElementById('suggestion-container').innerHTML = `
         <div style="display: flex; gap: 1rem; margin-top: 1rem; overflow-x: auto; padding: 0.5rem 0;">
             <div class="match-item"><img src="${t.image}" style="width: 100px; height: 120px; object-fit: cover; border-radius: 12px; border: 2px solid ${t.color}"></div>
@@ -209,16 +332,61 @@ async function generateOutfit() {
             ${s ? `<div class="match-item"><img src="${s.image}" style="width: 100px; height: 120px; object-fit: cover; border-radius: 12px; border: 2px solid ${s.color}"></div>` : ''}
             ${a ? `<div class="match-item"><img src="${a.image}" style="width: 100px; height: 120px; object-fit: cover; border-radius: 12px; border: 2px solid ${a.color}"></div>` : ''}
         </div>
-        <div style="margin-top: 1rem; font-size: 0.85rem; border-left: 3px solid var(--primary); padding-left: 1rem;">
-            Outfit suggerito per i ${temp}°C di Cordignano.
-        </div>
     `;
+    
+    document.getElementById('btn-worn').style.display = 'inline-block';
+}
+
+// Backup Functions
+function exportBackup() {
+    const data = {
+        closet: closet,
+        history: history,
+        theme: currentTheme,
+        timestamp: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `abbinata_backup_${new Date().toLocaleDateString()}.json`;
+    a.click();
+}
+
+function importBackup(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.closet) {
+                    closet = data.closet;
+                    history = data.history || [];
+                    saveCloset();
+                    saveHistory();
+                    location.reload();
+                }
+            } catch (err) {
+                showToast("File di backup non valido.");
+            }
+        };
+        reader.readAsText(file);
+    }
+}
+
+function resetApp() {
+    if (confirm("Sei sicuro? Tutti i dati verranno persi.")) {
+        localStorage.clear();
+        location.reload();
+    }
 }
 
 function showToast(m) {
     const t = document.createElement('div');
-    t.style = "position:fixed; bottom:20px; right:20px; background:var(--primary); color:white; padding:10px 20px; border-radius:10px; z-index:1000;";
+    t.className = "glass-card";
+    t.style = "position:fixed; bottom:20px; right:20px; background:var(--primary); color:white; padding:10px 20px; border-radius:10px; z-index:1000; animation: fadeIn 0.3s ease-out;";
     t.innerText = m;
     document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2000);
+    setTimeout(() => t.remove(), 3000);
 }

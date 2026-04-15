@@ -25,6 +25,9 @@
                 <button class="nav-btn" onclick="switchSection('aggiungi')" data-section="aggiungi">
                     <i data-lucide="plus-circle"></i> <span>Nuovo</span>
                 </button>
+                <button class="nav-btn" onclick="switchSection('settings')" data-section="settings">
+                    <i data-lucide="settings"></i> <span>Impostazioni</span>
+                </button>
                 <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Cambia Tema">
                     <i data-lucide="moon" id="theme-icon"></i>
                 </button>
@@ -41,9 +44,12 @@
                         <div id="suggestion-container">
                             <!-- Populated by JS -->
                         </div>
-                        <button class="btn-primary" onclick="generateOutfit()" style="margin-top: 1rem;">
-                            Genera Nuovo Look
-                        </button>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                            <button class="btn-primary" onclick="generateOutfit()">Genera Nuovo Look</button>
+                            <button class="btn-primary" id="btn-worn" onclick="markAsWorn()" style="background: var(--card-bg); border: 1px solid var(--border-color); display: none;">
+                                <i data-lucide="check-circle"></i> Indossato Oggi
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="glass-card weather-widget">
@@ -117,8 +123,35 @@
                                 <input type="color" id="item-color" value="#8b5cf6" style="width: 100%; height: 40px; border-radius: 8px; border: none; background: transparent;">
                             </div>
                         </div>
-                        <button class="btn-primary" onclick="saveNewItem()">Salva nell'Armadio</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn-primary" onclick="saveNewItem()">Salva nell'Armadio</button>
+                            <button class="btn-primary" id="ai-btn" onclick="processAI()" style="background: var(--card-bg); border: 1px solid var(--border-color); display: none;">
+                                ✨ Rimuovi Sfondo con AI
+                            </button>
+                        </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- SETTINGS SECTION -->
+            <section id="settings" class="section">
+                <h2>Impostazioni</h2>
+                <div class="glass-card">
+                    <h3>Backup & Ripristino</h3>
+                    <p style="color: var(--text-dim); margin-bottom: 2rem;">Scarica una copia del tuo armadio o caricane una esistente.</p>
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <button class="btn-primary" onclick="exportBackup()">Esporta Backup (.json)</button>
+                        <label class="btn-primary" style="background: var(--card-bg); border: 1px solid var(--border-color); cursor: pointer;">
+                            Carica Backup
+                            <input type="file" id="import-input" hidden accept=".json" onchange="importBackup(event)">
+                        </label>
+                    </div>
+                </div>
+                <div class="glass-card" style="border-color: var(--accent-red); opacity: 0.8;">
+                    <h3 style="color: var(--accent-red);">Resetta Applicazione</h3>
+                    <button class="nav-btn" onclick="resetApp()" style="color: var(--accent-red); background: rgba(239, 68, 68, 0.1); border-radius: 8px;">
+                        Cancella tutti i dati
+                    </button>
                 </div>
             </section>
         </main>
