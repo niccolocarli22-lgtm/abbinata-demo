@@ -15,6 +15,9 @@
     <div id="app">
         <nav>
             <div class="logo">ABBINATA</div>
+            <div id="ai-status" style="font-size: 0.7rem; color: var(--text-dim); margin-right: auto; margin-left: 2rem; display: flex; align-items: center; gap: 0.5rem;">
+                <div class="dot-pulse"></div> 🤖 Inizializzazione AI...
+            </div>
             <div class="nav-links">
                 <button class="nav-btn active" onclick="switchSection('dashboard')" data-section="dashboard">
                     <i data-lucide="layout-dashboard"></i> <span>Home</span>
@@ -158,6 +161,14 @@
     </div>
 
     <style>
+        .dot-pulse {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--secondary);
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+        }
         .badge-new {
             background: var(--primary);
             color: white;
