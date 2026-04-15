@@ -13,6 +13,10 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3531/3531822.png">
+    <style>
+        /* Loading splash */
+        #splash { position: fixed; inset: 0; background: #050507; z-index: 2000; display: flex; align-items: center; justify-content: center; }
+    </style>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -27,6 +31,30 @@
             <p id="magic-description" style="margin: 1.5rem 0; color: var(--text-dim); font-size: 0.9rem;"></p>
             <button class="btn-primary" onclick="closeModal('magic-modal')" style="width: 100%;">Splendido!</button>
         </div>
+    </div>
+    <div id="splash"><div class="dot-pulse"></div></div>
+
+    <!-- Lock Screen -->
+    <div id="lock-screen" class="lock-screen">
+        <h2 id="lock-msg">Benvenuto, sblocca Abbinata</h2>
+        <div class="pin-dots">
+            <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        <div class="keypad">
+            <button class="key" onclick="pressKey(1)">1</button>
+            <button class="key" onclick="pressKey(2)">2</button>
+            <button class="key" onclick="pressKey(3)">3</button>
+            <button class="key" onclick="pressKey(4)">4</button>
+            <button class="key" onclick="pressKey(5)">5</button>
+            <button class="key" onclick="pressKey(6)">6</button>
+            <button class="key" onclick="pressKey(7)">7</button>
+            <button class="key" onclick="pressKey(8)">8</button>
+            <button class="key" onclick="pressKey(9)">9</button>
+            <button class="key" onclick="resetPin()"><i data-lucide="refresh-cw" style="width:20px"></i></button>
+            <button class="key" onclick="pressKey(0)">0</button>
+            <button class="key" onclick="recoverPin()"><i data-lucide="help-circle" style="width:20px"></i></button>
+        </div>
+        <p id="lock-hint" style="margin-top:2rem; font-size:0.8rem; color:var(--text-dim);"></p>
     </div>
 
     <div id="app">
@@ -61,10 +89,15 @@
                     <div class="glass-card hero-suggestion" id="daily-outfit-card">
                         <div class="badge-new">SUGGERIMENTO AI</div>
                         <h2>Outfit del Giorno</h2>
-                        <div id="suggestion-container">
-                            <!-- Populated by JS -->
+                        <div id="suggestion-container" class="clothes-grid" style="margin-top: 1rem;">
+                            <!-- Suggerimento dinamico -->
                         </div>
-                        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                        <!-- Laundry Alert -->
+                        <div id="laundry-alert" class="laundry-alert">
+                            <i data-lucide="alert-triangle"></i>
+                            <span>Attenzione: Scorte di capi puliti scarse. Lavanderia consigliata!</span>
+                        </div>
+                        <div style="margin-top: 2rem; display: flex; gap: 1rem;">
                             <button class="btn-primary" onclick="generateOutfit()" style="flex:2;">Genera Nuovo Look</button>
                             <button class="btn-primary" id="btn-worn" onclick="markAsWorn()" style="background: var(--card-bg); border: 1px solid var(--border-color); display: none; flex:2;">
                                 <i data-lucide="check-circle"></i> Indossato
@@ -77,8 +110,13 @@
                     
                     <div class="glass-card weather-widget">
                         <h3>Meteo</h3>
-                        <div id="weather-info">
-                            <!-- Populated by JS -->
+                        <span id="weather-temp">--°C</span>
+                        <span id="weather-desc">Caricamento meteo...</span>
+                        <!-- Eco Toggle -->
+                        <div style="margin-top: 1.5rem; display: flex; align-items: center; gap: 0.5rem; background: var(--card-bg); padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid var(--border-color);">
+                            <span style="font-size: 0.75rem; font-weight: 600;">ECO</span>
+                            <input type="checkbox" id="eco-toggle" onchange="toggleEcoMode()" style="cursor:pointer">
+                            <span id="eco-status" class="eco-badge">OFF</span>
                         </div>
                     </div>
                 </div>
