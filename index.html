@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abbinata | Smart Wardrobe Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div id="app">
+        <nav>
+            <div class="logo">ABBINATA</div>
+            <div class="nav-links">
+                <button class="nav-btn active" onclick="switchSection('dashboard')" data-section="dashboard">
+                    <i data-lucide="layout-dashboard"></i> <span>Home</span>
+                </button>
+                <button class="nav-btn" onclick="switchSection('armadio')" data-section="armadio">
+                    <i data-lucide="shirt"></i> <span>Armadio</span>
+                </button>
+                <button class="nav-btn" onclick="switchSection('aggiungi')" data-section="aggiungi">
+                    <i data-lucide="plus-circle"></i> <span>Nuovo</span>
+                </button>
+                <button class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Cambia Tema">
+                    <i data-lucide="moon" id="theme-icon"></i>
+                </button>
+            </div>
+        </nav>
+
+        <main id="main-content">
+            <!-- DASHBOARD SECTION -->
+            <section id="dashboard" class="section active">
+                <div class="dashboard-grid">
+                    <div class="glass-card hero-suggestion" id="daily-outfit-card">
+                        <div class="badge-new">SUGGERIMENTO AI</div>
+                        <h2>Outfit del Giorno</h2>
+                        <div id="suggestion-container">
+                            <!-- Populated by JS -->
+                        </div>
+                        <button class="btn-primary" onclick="generateOutfit()" style="margin-top: 1rem;">
+                            Genera Nuovo Look
+                        </button>
+                    </div>
+                    
+                    <div class="glass-card weather-widget">
+                        <h3>Meteo</h3>
+                        <div id="weather-info">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-card">
+                    <h3>Stato Guardaroba</h3>
+                    <div style="display: flex; gap: 2rem;">
+                        <div>
+                            <div style="font-size: 1.5rem; font-weight: 700;" id="count-available">0</div>
+                            <div style="color: var(--accent-green); font-size: 0.8rem;">PULITI</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.5rem; font-weight: 700;" id="count-dirty">0</div>
+                            <div style="color: var(--accent-red); font-size: 0.8rem;">SPORCHI</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 1.5rem; font-weight: 700;" id="count-wash">0</div>
+                            <div style="color: var(--secondary); font-size: 0.8rem;">LAVAGGIO</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ARMADIO SECTION -->
+            <section id="armadio" class="section">
+                <div class="closet-header">
+                    <h2>Il Tuo Armadio</h2>
+                    <div class="filters">
+                        <button class="filter-chip active" onclick="filterCloset('tutti')">Tutti</button>
+                        <button class="filter-chip" onclick="filterCloset('disponibile')">Puliti</button>
+                        <button class="filter-chip" onclick="filterCloset('sporco')">Sporchi</button>
+                        <button class="filter-chip" onclick="filterCloset('lavaggio')">Lavaggio</button>
+                    </div>
+                </div>
+                <div class="clothes-grid" id="clothes-grid">
+                    <!-- Cards popolate da JS -->
+                </div>
+            </section>
+
+            <!-- AGGIUNGI SECTION -->
+            <section id="aggiungi" class="section">
+                <h2>Aggiungi al Guardaroba</h2>
+                <div class="glass-card">
+                    <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+                        <i data-lucide="image-plus" size="48" style="margin-bottom: 1rem; color: var(--primary);"></i>
+                        <p>Clicca per caricare una foto del vestito</p>
+                        <input type="file" id="file-input" hidden accept="image/*" onchange="handleImageUpload(event)">
+                    </div>
+
+                    <div id="upload-form" style="display: none; margin-top: 2rem;">
+                        <img id="preview-img" class="item-img" style="max-height: 200px; width: auto; border-radius: 12px; margin-bottom: 1.5rem;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
+                            <div>
+                                <label style="display: block; font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--text-dim);">CATEGORIA</label>
+                                <select id="item-category" class="glass-input">
+                                    <option value="top">Sopra (Maglietta/Camicia)</option>
+                                    <option value="bottom">Sotto (Pantaloni/Gonna)</option>
+                                    <option value="outerwear">Capospalla (Giacca/Cappotto)</option>
+                                    <option value="shoes">Scarpe</option>
+                                    <option value="accessory">Accessorio</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--text-dim);">COLORE PREDOMINANTE</label>
+                                <input type="color" id="item-color" value="#8b5cf6" style="width: 100%; height: 40px; border-radius: 8px; border: none; background: transparent;">
+                            </div>
+                        </div>
+                        <button class="btn-primary" onclick="saveNewItem()">Salva nell'Armadio</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <style>
+        .badge-new {
+            background: var(--primary);
+            color: white;
+            font-size: 0.65rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+    </style>
+
+    <script src="app.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
