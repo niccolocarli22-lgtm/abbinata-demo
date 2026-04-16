@@ -111,8 +111,8 @@ function unlockApp() {
 
 // Global App Initialization
 async function appInit() {
-    await openDB();
-    await loadData();
+    // All these run after unlocking or if no PIN
+    updateWeather();
     
     document.getElementById('eco-toggle').checked = performanceMode;
     updateEcoUI();
@@ -125,10 +125,9 @@ async function appInit() {
     generateOutfit();
     checkLaundryStatus();
     
-    setTimeout(() => {
-        const splash = document.getElementById('splash');
-        if (splash) splash.style.display = 'none';
-    }, 500);
+    // Ensure splash is gone
+    const splash = document.getElementById('splash');
+    if (splash) splash.style.display = 'none';
 }
 
 async function loadData() {
@@ -516,8 +515,25 @@ function showToast(m) {
 }
 
 // Security Check on start
-window.addEventListener('load', () => {
-    if (!userPin) {
-        document.getElementById('lock-screen').classList.remove('hidden');
+window.addEventListener('load', async () => {
+    // Caching UI references
+    const splash = document.getElementById('splash');
+    
+    try {
+        await openDB();
+        await loadData();
+        
+        if (!userPin) {
+            // No pin, go to app
+            unlockApp();
+        } else {
+            // Pin exists, show lock screen (hide splash)
+            setTimeout(() => {
+                if (splash) splash.style.display = 'none';
+            }, 600);
+        }
+    } catch (e) {
+        console.error("Critical Load Error:", e);
+        if (splash) splash.innerHTML = "<p style='color:white'>Errore Caricamento. Ricarica la pagina.</p>";
     }
 });
