@@ -523,14 +523,13 @@ window.addEventListener('load', async () => {
         await openDB();
         await loadData();
         
+        // Hide splash. Lock screen is naturally visible from index.html
+        setTimeout(() => {
+            if (splash) splash.style.display = 'none';
+        }, 600);
+        
         if (!userPin) {
-            // No pin, go to app
-            unlockApp();
-        } else {
-            // Pin exists, show lock screen (hide splash)
-            setTimeout(() => {
-                if (splash) splash.style.display = 'none';
-            }, 600);
+            document.getElementById('lock-msg').innerText = "Crea il tuo PIN a 4 cifre";
         }
     } catch (e) {
         console.error("Critical Load Error:", e);
