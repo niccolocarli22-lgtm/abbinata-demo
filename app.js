@@ -8,6 +8,26 @@ let aiEngines = { removal: null, classifier: null, config: {} };
 let performanceMode = localStorage.getItem('abbinata_eco') === 'true';
 let userPin = localStorage.getItem('abbinata_pin') || null;
 let currentInputPin = "";
+let globalTemp = 20;
+let inactivityTimer;
+
+// (Evoluzione 5 & 7) Sicurezza e Tema
+function resetInactivity() {
+    clearTimeout(inactivityTimer);
+    if (userPin && document.getElementById('lock-screen').classList.contains('hidden')) {
+        inactivityTimer = setTimeout(() => {
+            document.getElementById('lock-screen').classList.remove('hidden');
+            currentInputPin = ""; updatePinDots();
+        }, 180000); // 3 min
+    }
+}
+window.onload = resetInactivity;
+document.onmousemove = resetInactivity;
+document.ontouchstart = resetInactivity;
+
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+}
 
 function openDB() {
     return new Promise((resolve, reject) => {
@@ -111,23 +131,34 @@ function unlockApp() {
 
 // Global App Initialization
 async function appInit() {
-    // All these run after unlocking or if no PIN
+    // Evoluzione 10: Pre-Load AI silente
+    if (!performanceMode && typeof requestIdleCallback !== 'undefined') {
+        requestIdleCallback(() => initAIEngines());
+    }
+
     updateWeather();
     
     document.getElementById('eco-toggle').checked = performanceMode;
     updateEcoUI();
     
-    if (!performanceMode) {
-        initAIEngines();
-    }
-    
     renderCloset();
     generateOutfit();
     checkLaundryStatus();
+    updateStats(); // Evoluzione 4
     
-    // Ensure splash is gone
     const splash = document.getElementById('splash');
     if (splash) splash.style.display = 'none';
+}
+
+function updateStats() {
+    const elTotal = document.getElementById('stat-total');
+    if (!elTotal) return;
+    elTotal.innerText = closet.length;
+    if (closet.length > 0) {
+        const colors = closet.map(c => c.color);
+        const mostFreq = colors.sort((a,b) => colors.filter(v => v===a).length - colors.filter(v => v===b).length).pop();
+        document.getElementById('stat-color').style.background = mostFreq || '#222';
+    }
 }
 
 async function loadData() {
@@ -355,13 +386,16 @@ function mapClassToCategory(className) {
 function saveNewItem() {
     const category = document.getElementById('item-category').value;
     const color = document.getElementById('item-color').value;
-    closet.push({ id: Date.now(), image: pendingImage, category, color, status: 'disponibile', wear_count: 0 });
+    const occasionNode = document.getElementById('item-occasion');
+    const occasion = occasionNode ? occasionNode.value : 'casual';
+    closet.push({ id: Date.now(), image: pendingImage, category, color, status: 'disponibile', wear_count: 0, occasion });
     saveCloset();
     pendingImage = null;
     document.getElementById('upload-form').style.display = 'none';
     document.querySelector('.upload-zone').style.display = 'block';
     renderCloset();
     checkLaundryStatus();
+    updateStats();
     switchSection('armadio');
 }
 
@@ -370,20 +404,37 @@ async function updateWeather() {
     try {
         const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=45.9&longitude=12.4&current=temperature_2m,weather_code');
         const data = await res.json();
-        const temp = Math.round(data.current.temperature_2m);
-        document.getElementById('weather-temp').innerText = `${temp}°C`;
+        globalTemp = Math.round(data.current.temperature_2m);
+        document.getElementById('weather-temp').innerText = `${globalTemp}°C`;
         document.getElementById('weather-desc').innerText = "Cordignano, TV";
-        return temp;
+        return globalTemp;
     } catch(e) { return 20; }
 }
 
 async function generateOutfit() {
-    await updateWeather();
     const available = closet.filter(i => i.status === 'disponibile');
-    const tops = available.filter(i => i.category === 'top');
-    const bottoms = available.filter(i => i.category === 'bottom');
+    
+    // Evoluzione 6: Tutorial Overlay
+    const tutNode = document.getElementById('tutorial-overlay');
+    if (tutNode) tutNode.style.display = available.length === 0 ? 'block' : 'none';
+
+    // Evoluzione 3: Filtro Occasione
+    const occNode = document.getElementById('gen-occasion');
+    const targetOccasion = occNode ? occNode.value : 'tutte';
+    const filterFn = (i) => targetOccasion === 'tutte' || i.occasion === targetOccasion || !i.occasion;
+
+    let tops = available.filter(i => i.category === 'top' && filterFn(i));
+    let bottoms = available.filter(i => i.category === 'bottom' && filterFn(i));
+    
+    // Fallback se l'occasione non ha capi
+    if (tops.length === 0 || bottoms.length === 0) {
+        tops = available.filter(i => i.category === 'top');
+        bottoms = available.filter(i => i.category === 'bottom');
+    }
+
     const shoes = available.filter(i => i.category === 'shoes');
     const acc = available.filter(i => i.category === 'accessory');
+    
     if (tops.length === 0 || bottoms.length === 0) {
         document.getElementById('suggestion-container').innerHTML = `<p style="color:var(--text-dim);">Aggiungi vestiti puliti!</p>`;
         return;
@@ -428,6 +479,13 @@ function generateStylistAdvice(outfit) {
     // Regola del Terzo Pezzo
     if (!acc && !outerwear) {
         advice += `Questo look minimale è ottimo, ma potresti elevarlo aggiungendo un "terzo pezzo" (come una giacca o un accessorio al polso). `;
+    }
+
+    // Evoluzione 1: Meteo Stylist
+    if (globalTemp > 25 && outerwear) {
+        advice += `🌡️ Fa molto caldo oggi (${globalTemp}°C). Evita il capospalla o scegline uno leggerissimo in lino. `;
+    } else if (globalTemp < 15 && !outerwear) {
+        advice += `🌡️ Fa fresco fuori (${globalTemp}°C). Assicurati di abbinare una giacca o un cappotto. `;
     }
 
     if (advice === "") {
@@ -504,7 +562,11 @@ function openMagicModal() {
     const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=1000&nologo=true&seed=${Date.now()}`;
     
     const img = new Image();
-    img.onload = () => container.innerHTML = `<img src="${url}" style="width:100%; border-radius:12px;">`;
+    img.onload = () => container.innerHTML = `
+        <div class="polaroid" style="display:inline-block; max-width:90%;">
+            <img src="${url}">
+            <div class="polaroid-text">ABBINATA V5 - ${new Date().toLocaleDateString('it-IT')}</div>
+        </div>`;
     img.src = url;
 }
 

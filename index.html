@@ -97,7 +97,25 @@
                             <i data-lucide="alert-triangle"></i>
                             <span>Attenzione: Scorte di capi puliti scarse. Lavanderia consigliata!</span>
                         </div>
-                        <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+                        <!-- Tutorial Overaly -->
+                        <div id="tutorial-overlay" style="display:none; text-align:center; padding: 2rem 1rem; border:2px dashed var(--secondary); border-radius:12px; margin-top:2rem;">
+                            <h3>🧳 Il tuo Armadio è vuoto!</h3>
+                            <p style="color:var(--text-dim); margin-top:0.5rem; margin-bottom:1rem;">Inizia a riempirlo per vedere la magia dell'IA.</p>
+                            <button class="btn-primary" onclick="switchSection('aggiungi')">Aggiungi il Primo Capo</button>
+                        </div>
+
+                        <!-- Smart Generator Control -->
+                        <div style="margin-top: 1rem; margin-bottom: 0.5rem;">
+                            <label style="font-size:0.75rem; color:var(--text-dim);">SELEZIONA OCCASIONE</label>
+                            <select id="gen-occasion" class="glass-input" style="padding: 0.4rem; height: auto;">
+                                <option value="tutte">Tutte le Occasioni</option>
+                                <option value="lavoro">👔 Lavoro / Formale</option>
+                                <option value="casual">☕ Casual / Uscita</option>
+                                <option value="sport">🏃 Sport / Relax</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-top: 1rem; display: flex; gap: 1rem;">
                             <button class="btn-primary" onclick="generateOutfit()" style="flex:2;">Genera Nuovo Look</button>
                             <button class="btn-primary" id="btn-worn" onclick="markAsWorn()" style="background: var(--card-bg); border: 1px solid var(--border-color); display: none; flex:2;">
                                 <i data-lucide="check-circle"></i> Indossato
@@ -112,6 +130,20 @@
                         <h3>Meteo</h3>
                         <span id="weather-temp">--°C</span>
                         <span id="weather-desc">Caricamento meteo...</span>
+
+                        <!-- Dashboard Stats -->
+                        <div id="stats-dashboard" style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                            <h4 style="font-size:0.8rem; color:var(--text-dim); margin-bottom:0.5rem;">STATISTICHE ARMADIO</h4>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <span style="font-size:0.9rem;">Colore Dominante:</span>
+                                <div id="stat-color" style="width:20px; height:20px; border-radius:50%; background:#222; border:1px solid #444;"></div>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; margin-top:0.5rem;">
+                                <span style="font-size:0.9rem;">Totale Capi:</span>
+                                <strong id="stat-total">0</strong>
+                            </div>
+                        </div>
+
                         <!-- Eco Toggle -->
                         <div style="margin-top: 1.5rem; display: flex; align-items: center; gap: 0.5rem; background: var(--card-bg); padding: 0.5rem 1rem; border-radius: 100px; border: 1px solid var(--border-color);">
                             <span style="font-size: 0.75rem; font-weight: 600;">ECO</span>
@@ -180,7 +212,15 @@
                                 </select>
                             </div>
                             <div>
-                                <label style="display: block; font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--text-dim);">COLORE PREDOMINANTE</label>
+                                <label style="display: block; font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--text-dim);">OCCASIONE</label>
+                                <select id="item-occasion" class="glass-input">
+                                    <option value="casual">Casual / Tutti i giorni</option>
+                                    <option value="lavoro">Lavoro / Formale</option>
+                                    <option value="sport">Sport / Relax</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--text-dim);">COLORE</label>
                                 <input type="color" id="item-color" value="#8b5cf6" style="width: 100%; height: 40px; border-radius: 8px; border: none; background: transparent;">
                             </div>
                         </div>
